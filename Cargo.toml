@@ -1,0 +1,37 @@
+[package]
+name = "shelter"
+version = "0.1.0"
+edition = "2021"
+
+[profile.dev]
+debug-assertions = false
+
+[profile.release]
+debug-assertions = false # required to avoid misaligned pointer dereference panics
+strip = true  
+
+[dependencies]
+dinvoke_rs = "0.1.4"
+litcrypt2 = "0.1.2"
+nanorand = "0.7.0"
+unwinder = "0.1.1"
+
+[build-dependencies]
+cc = "1.0.83"
+
+[dependencies.windows]
+version = "0.51"
+features = [
+    "Win32_Foundation",
+    "Win32_Security",
+    "Win32_System",
+    "Win32_System_IO",
+    "Win32_System_Kernel",
+    "Win32_System_Diagnostics_Debug",
+    "Win32_System_Diagnostics_ToolHelp",
+    "Win32_System_WindowsProgramming",
+    "Wdk_Foundation",
+    "Win32_Storage_FileSystem",
+    "Win32_System_Memory",
+    "Win32_System_SystemInformation",
+]
