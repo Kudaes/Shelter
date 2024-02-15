@@ -151,3 +151,8 @@ Although Shelter is ready to use and it has been developed with OPSEC in mind, t
 * Reduce entropy when the whole PE is encrypted.
 * Replace `BCryptEncrypt`/`BCryptDecrypt` with the corresponding Nt function.
 * Add some randomness to the gadget selection process.
+
+## Previous work
+* [Gargoyle](https://github.com/JLospinoso/gargoyle)
+* [Ekko](https://github.com/Cracked5pider/Ekko)
+* [Cronos](https://github.com/Idov31/Cronos)
