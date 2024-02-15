@@ -127,22 +127,22 @@ let _ = shelter::fluctuate_from_pattern(time_to_sleep, None, pattern); // Encryp
 
 In order to test the implementation of the technique, mainly [PE-sieve](https://github.com/hasherezade/pe-sieve) has been used. By default, PE-sieve looks for implants within executable memory regions, which means that even obfuscating exclusively the current memory region (`.text`) is enough to avoid detections:
 
-![Current memory region obfuscation.](/RopRopRop/images/current_PE1.PNG "Current memory region obfuscation")
-![Current memory region obfuscation (Process Hacker).](/RopRopRop/images/current_PE1.2.PNG "Current memory region obfuscation (Process Hacker)")
+![Current memory region obfuscation.](/images/current_PE1.PNG "Current memory region obfuscation")
+![Current memory region obfuscation (Process Hacker).](/images/current_PE1.2.PNG "Current memory region obfuscation (Process Hacker)")
 
 Notice that, since we are using `Unwinder`, the call stack is spoofed and therefore the flag `/threads` does not detect the mapped dll neither.
 
 Now, PE-sieve allows to inspect non executable memory regions as well by using the `/data` flag. According to the [official documentation of the tool](https://github.com/hasherezade/pe-sieve/wiki/4.4.-Scan-non-executable-memory-(data)), this flag set to `always` can "produce a lot of noise/false positives". Despite that, we decided to use it in order to check the effectiveness of the whole PE encryption capability, since it allows to hide PE's data regions that could contain indicators of the presence of a in-memory implant.
 
-![Current memory region obfuscation detected by PE-sieve.](/RopRopRop/images/current_PE2.PNG "Current memory region obfuscation detected by PE-sieve")
-![Entire PE obfuscation stays undetected.](/RopRopRop/images/entire_PE.PNG "Entire PE obfuscation stays undetected")
+![Current memory region obfuscation detected by PE-sieve.](/images/current_PE2.PNG "Current memory region obfuscation detected by PE-sieve")
+![Entire PE obfuscation stays undetected.](/images/entire_PE.PNG "Entire PE obfuscation stays undetected")
 
 As it can be seen, in the first picture it is shown how obfuscating just the `.text` section is not enough when PE-sieve scans non executable memory pages, since some regions could contain strings that reveal the presence of a DLL (MZ, DOS header, section names, etc.). On the other hand, the second image shows how this issue can be solved by using Shelter's whole PE obfuscation mechanism. In any case and as stated in the PE-sieve's wiki, this option leads to tons of false positive since the mere presence in the heap of strings like ".data" or "rdata" already warns of possible implanted PE, despite it is not able to dump anything from the memory (since there is not any real PE content in that region).
 
 Finally, PE-sieve has a fairly new option to detect the presence of obfuscated implants by looking for high entropy memory regions. This option (`/obfusc`) in combination with `/data` is able to detect the presence of the payload due to the high entropy of the memory region that contains it (although it can't retrieve the PE since it's fully encrypted):
 
-![Entire PE obfuscation detection.](/RopRopRop/images/high_entropy.PNG "Entire PE obfuscation detection")
-![Entire PE obfuscation (Process Hacker).](/RopRopRop/images/high_entropy2.PNG "Entire PE obfuscation (Process Hacker)")
+![Entire PE obfuscation detection.](/images/high_entropy.PNG "Entire PE obfuscation detection")
+![Entire PE obfuscation (Process Hacker).](/images/high_entropy2.PNG "Entire PE obfuscation (Process Hacker)")
 <br>
 
 ## TO-DO
