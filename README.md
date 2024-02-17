@@ -31,6 +31,7 @@ Import this crate into your project by adding the following line to your `cargo.
 [dependencies]
 shelter = "0.1.0"
 ```
+Then, compile your project on `--release` mode.
 
 The main functionality of this crate has been wrapped in three functions:
 * `fluctuate()` allows to encrypt either the current memory region or the whole PE. This function requires the PE's MZ bytes to be present in order to dynamically retrieve its base address.
