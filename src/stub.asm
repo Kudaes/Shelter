@@ -285,7 +285,7 @@ SectionsWrapper ENDS
     end_crypt_2:
 
         ; ----- NTProtectVirtualMemory 
-        push [r15].SectionInfo.output
+        push [rcx].RopConfiguration.output_var
         push 0
         push 0
         push 0
