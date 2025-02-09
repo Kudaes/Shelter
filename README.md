@@ -58,7 +58,7 @@ let _ = shelter::fluctuate(false, time_to_sleep, None); // Encrypt only the curr
 ```
 ```rust
 let time_to_sleep = Some(10); // Sleep for 10 seconds
-let _ = shelter::fluctuate(false, time_to_sleep, None); // Encrypt the whole PE
+let _ = shelter::fluctuate(true, time_to_sleep, None); // Encrypt the whole PE
 ```
 ```rust
 pub type CreateEventW = unsafe extern "system" fn (*const SECURITY_ATTRIBUTES, i32, i32, *const u16) -> HANDLE;
