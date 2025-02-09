@@ -11,10 +11,10 @@ debug-assertions = false # required to avoid misaligned pointer dereference pani
 strip = true  
 
 [dependencies]
-dinvoke_rs = "0.1.4"
-litcrypt2 = "0.1.2"
+dinvoke_rs = "=0.2.0"
+litcrypt2 = "=0.1.2"
 nanorand = "0.7.0"
-unwinder = "0.1.1"
+unwinder = "=0.1.4"
 
 [build-dependencies]
 cc = "1.0.83"

