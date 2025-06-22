@@ -29,7 +29,7 @@ Import this crate into your project by adding the following line to your `cargo.
 
 ```rust
 [dependencies]
-shelter = "=0.1.1"
+shelter = "=0.1.2"
 ```
 Then, compile your project on `--release` mode.
 

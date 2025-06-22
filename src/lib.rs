@@ -42,6 +42,7 @@ struct RopConfiguration
 }
 
 #[repr(C)]
+#[derive(Clone, Copy)]
 struct SectionInfo{
     section_address: *mut PVOID,
     section_size: *mut usize,
@@ -50,6 +51,7 @@ struct SectionInfo{
 }
 
 #[repr(C)]
+#[derive(Clone, Copy)]
 struct SectionsWrapper {
     base_address: *mut PVOID,
     total_size: *mut usize,  
@@ -57,7 +59,7 @@ struct SectionsWrapper {
     iv_d: PVOID,
     n: usize,
     sec_size: usize,
-    sections: Vec<SectionInfo>,
+    sections: *mut SectionInfo,
 }
 
 extern "C"
@@ -130,9 +132,7 @@ fn fluctuate_core(config_encryptall: bool, config_delay: Option<u32>, event_hand
     rng.fill(&mut aes_iv);
     let aes_iv: Vec<u8> = aes_iv.to_vec();
 
-   unsafe
-   {
-        let mut configuration: RopConfiguration = std::mem::zeroed();
+        let mut configuration: RopConfiguration = unsafe { std::mem::zeroed() };
         
         let k32 = dinvoke_rs::dinvoke::get_module_base_address(&lc!("kernel32.dll")); 
         let load_library_address = dinvoke_rs::dinvoke::get_function_address(k32, &lc!("LoadLibraryA"));
@@ -147,44 +147,48 @@ fn fluctuate_core(config_encryptall: bool, config_delay: Option<u32>, event_hand
         }
 
         let alg_handle = HANDLE::default();
-        let alg_handle: *mut HANDLE = transmute(&alg_handle);
-        let mut alg_id: Vec<u16> = "AES".encode_utf16().collect(); // BCRYPT_AES_ALGORITHM
+        let alg_handle: *mut HANDLE = unsafe { transmute(&alg_handle) };
+        let aes_str = &lc!("AES");
+        let mut alg_id: Vec<u16> = aes_str.encode_utf16().collect(); // BCRYPT_AES_ALGORITHM
         alg_id.push(0);
         let flags = 0;
         let function: BCryptOpenAlgorithmProvider;
         let ret_value: Option<i32>;
 
         // Open a handle to the AES encryption provider
-        dinvoke_rs::dinvoke::dynamic_invoke!(bcrypt,&lc!("BCryptOpenAlgorithmProvider"),function,ret_value,alg_handle,alg_id.as_ptr(),ptr::null(),flags);
+        unsafe{dinvoke_rs::dinvoke::dynamic_invoke!(bcrypt,&lc!("BCryptOpenAlgorithmProvider"),function,ret_value,alg_handle,alg_id.as_ptr(),ptr::null(),flags);};
         if ret_value.unwrap() != 0
         {
             return Err(lc!("[X] Error while invoking BCryptOpenAlgorithmProvider."));
         }
         
-        let mut bcrypt_object_length: Vec<u16> = "ObjectLength".encode_utf16().collect(); // BCRYPT_AES_ALGORITHM
+        let object_len_str = &lc!("ObjectLength");
+        let mut bcrypt_object_length: Vec<u16> = object_len_str.encode_utf16().collect(); // BCRYPT_AES_ALGORITHM
         bcrypt_object_length.push(0);
         let cb_key_object = 0u32;
-        let cb_key_object: *mut u8 = transmute(&cb_key_object);
+        let cb_key_object: *mut u8 = unsafe { transmute(&cb_key_object) };
         let buffer_size = 4u32;
         let cb_data = 0u32;
-        let cb_data: *mut u32 = transmute(&cb_data);
+        let cb_data: *mut u32 = unsafe { transmute(&cb_data) };
         let flags = 0u32;
         let function: BCryptGetProperty;
         let ret_value: Option<i32>;
 
         // We obtain the size of the buffer where the encryption key is to be stored
-        dinvoke_rs::dinvoke::dynamic_invoke!(bcrypt,&lc!("BCryptGetProperty"),function,ret_value,*alg_handle,bcrypt_object_length.as_ptr(),cb_key_object,buffer_size,cb_data,flags);
+        unsafe{dinvoke_rs::dinvoke::dynamic_invoke!(bcrypt,&lc!("BCryptGetProperty"),function,ret_value,*alg_handle,bcrypt_object_length.as_ptr(),cb_key_object,buffer_size,cb_data,flags);};
         if ret_value.unwrap() != 0
         {
             return Err(lc!("[X] Error while invoking BCryptGetProperty."));
         }
 
-        let cb_key_object = *(cb_key_object as *mut u32);
+        let cb_key_object = unsafe { *(cb_key_object as *mut u32) };
         let mut pb_key_object = vec![0u8;cb_key_object as usize];
 
-        let mut bcrypt_chaining_mode: Vec<u16> = "ChainingMode".encode_utf16().collect(); // BCRYPT_CHAINING_MODE
+        let chain_mode = &lc!("ChainingMode");
+        let cbc_mode = &lc!("ChainingModeCBC");
+        let mut bcrypt_chaining_mode: Vec<u16> = chain_mode.encode_utf16().collect(); // BCRYPT_CHAINING_MODE
         bcrypt_chaining_mode.push(0);
-        let mut chaining_mode: Vec<u16> = "ChainingModeCBC".encode_utf16().collect(); // BCRYPT_CHAIN_MODE_CBC
+        let mut chaining_mode: Vec<u16> = cbc_mode.encode_utf16().collect(); // BCRYPT_CHAIN_MODE_CBC
         chaining_mode.push(0);
         let buffer_size = chaining_mode.len() as u32;
         let flags = 0u32;
@@ -192,7 +196,7 @@ fn fluctuate_core(config_encryptall: bool, config_delay: Option<u32>, event_hand
         let ret_value: Option<i32>;
 
         // We indicate the encryption provider that we want to use AES in CBC mode
-        dinvoke_rs::dinvoke::dynamic_invoke!(bcrypt,&lc!("BCryptSetProperty"),function,ret_value,*alg_handle,bcrypt_chaining_mode.as_ptr(),chaining_mode.as_mut_ptr() as *mut _,buffer_size,flags);
+        unsafe{dinvoke_rs::dinvoke::dynamic_invoke!(bcrypt,&lc!("BCryptSetProperty"),function,ret_value,*alg_handle,bcrypt_chaining_mode.as_ptr(),chaining_mode.as_mut_ptr() as *mut _,buffer_size,flags);};
         if ret_value.unwrap() != 0
         {
             return Err(lc!("[X] Error while invoking BCryptSetProperty."));
@@ -201,11 +205,11 @@ fn fluctuate_core(config_encryptall: bool, config_delay: Option<u32>, event_hand
         let f: BCryptGenerateSymmetricKey;
         let r: Option<i32>;
         let key_handle = HANDLE::default();
-        let key_handle : *mut HANDLE = transmute(&key_handle);
+        let key_handle : *mut HANDLE = unsafe { transmute(&key_handle) };
         let aes_key_len = aes_128_key.len() as u32;
 
         // Generate encryption key
-        dinvoke_rs::dinvoke::dynamic_invoke!(bcrypt,&lc!("BCryptGenerateSymmetricKey"),f,r,*alg_handle,key_handle,pb_key_object.as_mut_ptr(),cb_key_object,aes_128_key.as_mut_ptr(),aes_key_len,0);
+        unsafe{dinvoke_rs::dinvoke::dynamic_invoke!(bcrypt,&lc!("BCryptGenerateSymmetricKey"),f,r,*alg_handle,key_handle,pb_key_object.as_mut_ptr(),cb_key_object,aes_128_key.as_mut_ptr(),aes_key_len,0);};
         if r.unwrap() != 0
         {
             return Err(lc!("[X] Error while invoking BCryptGenerateSymmetricKey."));
@@ -252,6 +256,8 @@ fn fluctuate_core(config_encryptall: bool, config_delay: Option<u32>, event_hand
         }
 
         let sections_wrapper: SectionsWrapper;
+        // Initialize Sections structure
+        let mut sections_array: Vec<SectionInfo> = vec![];
 
         let mut page = 0usize; 
         let mut page_length = 0usize;
@@ -282,11 +288,8 @@ fn fluctuate_core(config_encryptall: bool, config_delay: Option<u32>, event_hand
 
         if config_encrypt_all_sections 
         {
-            let pe_ba: *const u8 =  std::mem::transmute(pe_base);
+            let pe_ba: *const u8 =  unsafe { std::mem::transmute(pe_base) };
             let mut current_pe = get_pe_metadata(pe_ba).unwrap();
-
-            // Array that will contain each SectionInfo
-            let mut sections_array: Vec<SectionInfo> = vec![];
 
             // Retrieve the PE Header's section information
             let base_of_code;
@@ -300,7 +303,7 @@ fn fluctuate_core(config_encryptall: bool, config_delay: Option<u32>, event_hand
             let section_address: usize = pe_base;
             let section_protection: u32 = PAGE_READONLY;
             
-            let mut new_section: SectionInfo = std::mem::zeroed();
+            let mut new_section: SectionInfo = unsafe { std::mem::zeroed() };
             
             let alloc_base_address: Box<*mut c_void> = Box::new(section_address as *mut c_void);
             new_section.section_address = Box::into_raw(alloc_base_address);
@@ -320,7 +323,7 @@ fn fluctuate_core(config_encryptall: bool, config_delay: Option<u32>, event_hand
             for section in current_pe.sections.iter_mut()
             {   
 
-                let section_size: usize = section.Misc.VirtualSize as usize;
+                let section_size: usize = unsafe { section.Misc.VirtualSize } as usize;
                 let section_address: usize = pe_base + section.VirtualAddress as usize;
 
                 let read = section.Characteristics.0 & SECTION_MEM_READ != 0;
@@ -346,7 +349,7 @@ fn fluctuate_core(config_encryptall: bool, config_delay: Option<u32>, event_hand
                     continue
                 }
 
-                let mut new_section: SectionInfo = std::mem::zeroed();
+                let mut new_section: SectionInfo = unsafe { std::mem::zeroed() };
 
                 let alloc_base_address: Box<*mut c_void> = Box::new(section_address as *mut c_void);
                 new_section.section_address = Box::into_raw(alloc_base_address);
@@ -376,17 +379,17 @@ fn fluctuate_core(config_encryptall: bool, config_delay: Option<u32>, event_hand
             // Calculate the total size of the PE
             for s in &sections_array
             {
-                total_size += *s.section_size;
+                total_size += unsafe { *s.section_size };
             }
 
-            let total: *mut usize = transmute(&total_size);
-            let base_addr: *mut *mut c_void = transmute(&pe_base);
+            let total: *mut usize = unsafe { transmute(&total_size) };
+            let base_addr: *mut *mut c_void = unsafe { transmute(&pe_base) };
 
             // As BCrypt functions may modify the contents of the IV buffer, it is necessary to allocate one for each operation (encrypt/decrypt)
             let mut allocated_iv1: Box<[u8]> = vec![0; iv_size].into_boxed_slice();
             let mut allocated_iv2: Box<[u8]> = vec![0; iv_size].into_boxed_slice();
-            std::ptr::copy_nonoverlapping(aes_iv.as_ptr(), allocated_iv1.as_mut_ptr(), iv_size); 
-            std::ptr::copy_nonoverlapping(aes_iv.as_ptr(), allocated_iv2.as_mut_ptr(), iv_size); 
+            unsafe { std::ptr::copy_nonoverlapping(aes_iv.as_ptr(), allocated_iv1.as_mut_ptr(), iv_size) }; 
+            unsafe { std::ptr::copy_nonoverlapping(aes_iv.as_ptr(), allocated_iv2.as_mut_ptr(), iv_size) }; 
            
             sections_wrapper = SectionsWrapper {
                 base_address: base_addr as _,
@@ -395,7 +398,7 @@ fn fluctuate_core(config_encryptall: bool, config_delay: Option<u32>, event_hand
                 iv_d: Box::into_raw(allocated_iv2) as *mut c_void,
                 n: sections_array.len(),
                 sec_size: mem::size_of::<SectionInfo>(),
-                sections: sections_array,
+                sections: sections_array.as_mut_ptr(),
             };
 
         } 
@@ -403,37 +406,37 @@ fn fluctuate_core(config_encryptall: bool, config_delay: Option<u32>, event_hand
         {   // Encrypt only the current section
 
             let b = vec![0u8; size_of::<SYSTEM_INFO>()];
-            let si: *mut SYSTEM_INFO = std::mem::transmute(b.as_ptr());
+            let si: *mut SYSTEM_INFO = unsafe { std::mem::transmute(b.as_ptr()) };
             dinvoke_rs::dinvoke::get_system_info(si);
             let main_address = fluctuate as usize;
 
             let mut mem = 0usize;
-            let max = (*si).lpMaximumApplicationAddress as usize;
+            let max = (unsafe { *si }).lpMaximumApplicationAddress as usize;
            
             let mut page_protection = PAGE_NOACCESS;
 
             while mem < max
             {
                 let buffer = vec![0u8; size_of::<MEMORY_BASIC_INFORMATION>()];
-                let buffer: *mut MEMORY_BASIC_INFORMATION = std::mem::transmute(buffer.as_ptr());
+                let buffer: *mut MEMORY_BASIC_INFORMATION = unsafe { std::mem::transmute(buffer.as_ptr()) };
                 let length = size_of::<MEMORY_BASIC_INFORMATION>();
                 let _r = dinvoke_rs::dinvoke::virtual_query_ex(
-                    GetCurrentProcess(), 
+                    unsafe { GetCurrentProcess() }, 
                     mem as *const c_void, 
                     buffer, 
                     length
                 );
                 
-                if main_address >= ((*buffer).BaseAddress as usize) && main_address <= ((*buffer).BaseAddress as usize + (*buffer).RegionSize )
+                if main_address >= ((unsafe { *buffer }).BaseAddress as usize) && main_address <= ((unsafe { *buffer }).BaseAddress as usize + (unsafe { *buffer }).RegionSize )
                 {
-                    page = (*buffer).BaseAddress as usize;
-                    page_length = (*buffer).RegionSize;
+                    page = (unsafe { *buffer }).BaseAddress as usize;
+                    page_length = (unsafe { *buffer }).RegionSize;
 
-                    page_protection = (*buffer).Protect.0;
+                    page_protection = (unsafe { *buffer }).Protect.0;
                     break;
                 }
 
-                mem = (*buffer).BaseAddress as usize + (*buffer).RegionSize;
+                mem = (unsafe { *buffer }).BaseAddress as usize + (unsafe { *buffer }).RegionSize;
             }
 
             if page == 0 || page_length == 0 
@@ -441,23 +444,20 @@ fn fluctuate_core(config_encryptall: bool, config_delay: Option<u32>, event_hand
                 return Err(lc!("[X] Error retrieving current section information."));
             }
 
-            // Initialize Sections structure
-            let mut sections_array: Vec<SectionInfo> = vec![];
-
-            let mut new_section: SectionInfo = std::mem::zeroed();
-            new_section.section_address = transmute(&page);
-            new_section.section_size = transmute(&page_length);
+            let mut new_section: SectionInfo = unsafe { std::mem::zeroed() };
+            new_section.section_address = unsafe { transmute(&page) };
+            new_section.section_size = unsafe { transmute(&page_length) };
 
             let output = 0u32;
-            let output_ptr: *mut u32 = transmute(&output);
-            new_section.output = transmute(output_ptr);
+            let output_ptr: *mut u32 = unsafe { transmute(&output) };
+            new_section.output = unsafe { transmute(output_ptr) };
 
             // As BCrypt functions may modify the contents of the IV buffer, it is necessary to allocate one for each operation (encrypt/decrypt)
             let mut allocated_iv1: Box<[u8]> = vec![0; iv_size].into_boxed_slice();
             let mut allocated_iv2: Box<[u8]> = vec![0; iv_size].into_boxed_slice();
             
-            std::ptr::copy_nonoverlapping(aes_iv.as_ptr(), allocated_iv1.as_mut_ptr(), iv_size); 
-            std::ptr::copy_nonoverlapping(aes_iv.as_ptr(), allocated_iv2.as_mut_ptr(), iv_size); 
+            unsafe { std::ptr::copy_nonoverlapping(aes_iv.as_ptr(), allocated_iv1.as_mut_ptr(), iv_size) }; 
+            unsafe { std::ptr::copy_nonoverlapping(aes_iv.as_ptr(), allocated_iv2.as_mut_ptr(), iv_size) }; 
 
             let section_protection: u32;
 
@@ -480,7 +480,6 @@ fn fluctuate_core(config_encryptall: bool, config_delay: Option<u32>, event_hand
             }
 
             new_section.original_protection = section_protection as usize;
-           
             sections_array.push(new_section);
 
             sections_wrapper = SectionsWrapper {
@@ -490,7 +489,7 @@ fn fluctuate_core(config_encryptall: bool, config_delay: Option<u32>, event_hand
                 iv_d: Box::into_raw(allocated_iv2) as *mut c_void,
                 n: 1,
                 sec_size: mem::size_of::<SectionInfo>(),
-                sections: sections_array,
+                sections: sections_array.as_mut_ptr(),
             };
 
         }
@@ -523,14 +522,14 @@ fn fluctuate_core(config_encryptall: bool, config_delay: Option<u32>, event_hand
 
             if s.contains(".text")
             {
-                let dst: Vec<u8> =vec![0;section.Misc.VirtualSize as usize];
+                let dst: Vec<u8> = unsafe{vec![0;section.Misc.VirtualSize as usize]};
                 let dir = ntdll as i64 + section.VirtualAddress as i64;
-                copy_nonoverlapping((dir as isize) as *mut u8, dst.as_ptr() as *mut u8, section.Misc.VirtualSize as usize);
+                unsafe { copy_nonoverlapping((dir as isize) as *mut u8, dst.as_ptr() as *mut u8, section.Misc.VirtualSize as usize) };
 
                 god_addr = ntdll as usize + section.VirtualAddress as usize + 
                                 get_gadget_offset(
                                     dst.as_ptr() as *const u8, 
-                                    section.Misc.VirtualSize, 
+                                    unsafe { section.Misc.VirtualSize }, 
                                     god_gadget.as_ptr(), 
                                     god_gadget.len());
 
@@ -542,37 +541,37 @@ fn fluctuate_core(config_encryptall: bool, config_delay: Option<u32>, event_hand
                     gag1_addr = ntdll as usize + section.VirtualAddress as usize + 
                                     get_gadget_offset(
                                         dst.as_ptr() as *const u8, 
-                                        section.Misc.VirtualSize, 
+                                        unsafe { section.Misc.VirtualSize }, 
                                         gadget_1.as_ptr(), 
                                         gadget_1.len());
                     gag2_addr = ntdll as usize + section.VirtualAddress as usize + 
                                     get_gadget_offset(
                                         dst.as_ptr() as *const u8, 
-                                        section.Misc.VirtualSize, 
+                                        unsafe { section.Misc.VirtualSize }, 
                                         gadget_2.as_ptr(), 
                                         gadget_2.len());
                     gag3_addr = ntdll as usize + section.VirtualAddress as usize + 
                                     get_gadget_offset(
                                         dst.as_ptr() as *const u8, 
-                                        section.Misc.VirtualSize, 
+                                        unsafe { section.Misc.VirtualSize }, 
                                         gadget_3.as_ptr(), 
                                         gadget_3.len());
                     gag4_addr = ntdll as usize + section.VirtualAddress as usize + 
                                     get_gadget_offset(
                                         dst.as_ptr() as *const u8, 
-                                        section.Misc.VirtualSize, 
+                                        unsafe { section.Misc.VirtualSize }, 
                                         gadget_4.as_ptr(), 
                                         gadget_4.len());
                     gag8_addr = ntdll as usize + section.VirtualAddress as usize + 
                                     get_gadget_offset(
                                         dst.as_ptr() as *const u8, 
-                                        section.Misc.VirtualSize, 
+                                        unsafe { section.Misc.VirtualSize }, 
                                         gadget_8.as_ptr(), 
                                         gadget_8.len()); 
                     gag9_addr = ntdll as usize + section.VirtualAddress as usize + 
                                     get_gadget_offset(
                                         dst.as_ptr() as *const u8, 
-                                        section.Misc.VirtualSize, 
+                                        unsafe { section.Misc.VirtualSize }, 
                                         gadget_9.as_ptr(), 
                                         gadget_9.len());      
                     
@@ -581,19 +580,19 @@ fn fluctuate_core(config_encryptall: bool, config_delay: Option<u32>, event_hand
                 gag5_addr = ntdll as usize + section.VirtualAddress as usize + 
                                 get_gadget_offset(
                                     dst.as_ptr() as *const u8, 
-                                    section.Misc.VirtualSize, 
+                                    unsafe { section.Misc.VirtualSize }, 
                                     gadget_5.as_ptr(), 
                                     gadget_5.len()); 
                 gag6_addr = ntdll as usize + section.VirtualAddress as usize + 
                                 get_gadget_offset(
                                     dst.as_ptr() as *const u8, 
-                                    section.Misc.VirtualSize, 
+                                    unsafe { section.Misc.VirtualSize }, 
                                     gadget_6.as_ptr(), 
                                     gadget_6.len());  
                 gag7_addr = ntdll as usize + section.VirtualAddress as usize + 
                                 get_gadget_offset(
                                     dst.as_ptr() as *const u8, 
-                                    section.Misc.VirtualSize, 
+                                    unsafe { section.Misc.VirtualSize }, 
                                     gadget_7.as_ptr(), 
                                     gadget_7.len());                                             
             }
@@ -643,7 +642,7 @@ fn fluctuate_core(config_encryptall: bool, config_delay: Option<u32>, event_hand
                 objhandle = h;
             },
             None => {
-                dinvoke_rs::dinvoke::dynamic_invoke!(k32,&lc!("CreateEventW"),function,ret,ptr::null_mut(),0,0,ptr::null());
+                unsafe{dinvoke_rs::dinvoke::dynamic_invoke!(k32,&lc!("CreateEventW"),function,ret,ptr::null_mut(),0,0,ptr::null());};
                 match ret {
                     Some(h) => {
                         objhandle = h;
@@ -662,7 +661,7 @@ fn fluctuate_core(config_encryptall: bool, config_delay: Option<u32>, event_hand
         match config_delay {
             Some(seconds) => {
                 delay_value = seconds as i64 * -10000000;
-                delay = transmute(&delay_value);
+                delay = unsafe { transmute(&delay_value) };
             },
             None => {
                 // If a value is not specified, the timeout will be Infinite
@@ -676,11 +675,11 @@ fn fluctuate_core(config_encryptall: bool, config_delay: Option<u32>, event_hand
         configuration.delay = delay as *mut isize;
 
         //  Encryption
-        configuration.key_handle = transmute(key_handle);
+        configuration.key_handle = unsafe { transmute(key_handle) };
         configuration.iv_len = iv_size;
         let output_var = 0u32;
-        let output_var_ptr: *mut u32 = transmute(&output_var);
-        configuration.output_var = transmute(output_var_ptr);
+        let output_var_ptr: *mut u32 = unsafe { transmute(&output_var) };
+        configuration.output_var = unsafe { transmute(output_var_ptr) };
        
         let bcryptencrypt_addr = dinvoke_rs::dinvoke::get_function_address(bcrypt, &lc!("BCryptEncrypt"));
         configuration.bencrypt = bcryptencrypt_addr as usize;
@@ -689,8 +688,8 @@ fn fluctuate_core(config_encryptall: bool, config_delay: Option<u32>, event_hand
         configuration.bdecrypt = bcryptdecrypt_addr as usize;
 
         // Call Unwinder::SpoofAndCall to get a clean call stack for the rop chain
-        let rop_configuration: PVOID = transmute(&configuration);
-        let sections_configuration: PVOID = transmute(&sections_wrapper);
+        let rop_configuration: PVOID = unsafe { transmute(&configuration) };
+        let sections_configuration: PVOID = unsafe { transmute(&sections_wrapper) };
         let encrypt_addr: *mut c_void = Fluctuate as _;
         
         let unwinder_addr = unwinder::spoof_and_call as usize;
@@ -702,8 +701,8 @@ fn fluctuate_core(config_encryptall: bool, config_delay: Option<u32>, event_hand
         args.push(rop_configuration);
         args.push(sections_configuration);
 
-        let _ = SpoofAndCall(unwinder_addr, args, false, 0);
-       
+        unsafe{SpoofAndCall(unwinder_addr, args, false, 0);};
+
         // Clean Up
         if !config_is_handle_provided {
             // Close the event handle
@@ -714,26 +713,31 @@ fn fluctuate_core(config_encryptall: bool, config_delay: Option<u32>, event_hand
         let f: BCryptCloseAlgorithmProvider;
         let _r: Option<i32>;
         // Close handle to the encryption algorithm provider
-        dinvoke_rs::dinvoke::dynamic_invoke!(bcrypt,&lc!("BCryptCloseAlgorithmProvider"),f,_r,*alg_handle,flags);
+        unsafe{dinvoke_rs::dinvoke::dynamic_invoke!(bcrypt,&lc!("BCryptCloseAlgorithmProvider"),f,_r,*alg_handle,flags);};
         
         let f: BCryptDestroyKey;
         let _r: Option<i32>;
         // Destroy encryption key
-        dinvoke_rs::dinvoke::dynamic_invoke!(bcrypt,&lc!("BCryptDestroyKey"),f,_r,*key_handle);
+        unsafe{dinvoke_rs::dinvoke::dynamic_invoke!(bcrypt,&lc!("BCryptDestroyKey"),f,_r,*key_handle);};
 
         // Allow the destructor to free the allocated memory
-        let _ = Box::from_raw(sections_wrapper.iv_e);
-        let _ = Box::from_raw(sections_wrapper.iv_d);
+        let _ = unsafe{Box::from_raw(sections_wrapper.iv_e)};
+        let _ = unsafe{Box::from_raw(sections_wrapper.iv_d)};
 
         if config_encrypt_all_sections {
-            for sect in &sections_wrapper.sections{
-                let _ = Box::from_raw((*sect).section_address);
-                let _ = Box::from_raw((*sect).section_size);
-                let _ = Box::from_raw((*sect).output);
+            let ptr = sections_wrapper.sections;
+            for i in 0..sections_wrapper.n {
+                unsafe 
+                {
+                    let temp_ptr = ptr.add(i);
+                    let _ = Box::from_raw((*temp_ptr).section_address);
+                    let _ = Box::from_raw((*temp_ptr).section_size);
+                    let _ = Box::from_raw((*temp_ptr).output);
+                }
+                
             }
         }
-   }
-
+   
    Ok(())
    
 }
