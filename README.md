@@ -155,5 +155,6 @@ Although Shelter is ready to use and it has been developed with OPSEC in mind, t
 
 ## Previous work
 * [Gargoyle](https://github.com/JLospinoso/gargoyle)
+* [Gargoyle, a decade later](https://lospino.so/blog/gargoyle-a-decade-later/): retrospective on temporal memory state, validation boundaries, and defensive visibility.
 * [Ekko](https://github.com/Cracked5pider/Ekko)
 * [Cronos](https://github.com/Idov31/Cronos)
